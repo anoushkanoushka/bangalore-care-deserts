@@ -1,0 +1,18 @@
+{
+  "test_mae": 6.578099133920632,
+  "test_r2": 0.10198302121358926,
+  "cv_r2_mean": 0.12541384798686545,
+  "cv_r2_std": 0.09602763870973986,
+  "feature_cols": [
+    "log_area",
+    "perimeter_km",
+    "compactness",
+    "solidity",
+    "dist_center_km",
+    "local_ward_density_km",
+    "num_neighbors",
+    "perimeter_area_ratio"
+  ],
+  "n_wards": 243,
+  "model_type": "Ridge Regression (alpha=5.0, standardized features)"
+}
