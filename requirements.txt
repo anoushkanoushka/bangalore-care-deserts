@@ -9,3 +9,4 @@ streamlit-folium
 folium
 matplotlib
 joblib
+geopy
