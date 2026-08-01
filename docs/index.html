@@ -295,6 +295,7 @@
       <a href="#features">What it does</a>
       <a href="#method">Method</a>
       <a href="#findings">Findings</a>
+      <a href="#scoring">Scoring</a>
       <a href="#explore">Explore</a>
     </nav>
     <a href="#explore" class="navcta">View the map</a>
@@ -429,6 +430,95 @@
     </div>
   </div>
 </section>
+
+<section class="section-pad" id="scoring" style="background:#F1EADB;">
+  <div class="wrap">
+    <div class="section-eyebrow-badge" style="background:var(--green);">AI</div>
+    <h2 class="section-title">How the <em>care accessibility score</em> works</h2>
+
+    <p style="max-width:720px; margin-top:18px; font-size:14.5px; line-height:1.7;">
+      To move beyond simple density mapping, the project computes a
+      <strong>Care Accessibility Score</strong> for every Bangalore ward.
+      The score combines spatial access and healthcare availability into a
+      normalized 0–1 risk indicator.
+    </p>
+
+    <div class="cards-row" style="margin-top:34px;">
+      <div class="card c2">
+        <div>
+          <div class="tag mono">INPUT 01</div>
+          <h3>Nearest hospital distance</h3>
+          <p>Wards farther from major hospitals receive a higher risk contribution.</p>
+        </div>
+      </div>
+
+      <div class="card c3">
+        <div>
+          <div class="tag mono">INPUT 02</div>
+          <h3>Population density</h3>
+          <p>Higher population concentration increases expected healthcare demand.</p>
+        </div>
+      </div>
+
+      <div class="card c1">
+        <div>
+          <div class="tag mono">INPUT 03</div>
+          <h3>Clinic availability</h3>
+          <p>Wards with fewer clinics per resident receive a higher accessibility risk score.</p>
+        </div>
+      </div>
+    </div>
+
+    <div style="margin-top:42px; display:grid; grid-template-columns:1fr 1fr; gap:28px; align-items:start;">
+      <div style="background:var(--cream); border:var(--border); border-radius:20px; padding:24px; box-shadow:var(--shadow);">
+        <p class="mono" style="font-size:11px; margin-bottom:12px;">Scoring logic</p>
+        <p style="font-size:14px; line-height:1.7; margin-bottom:14px;">
+          The final risk score is computed from normalized spatial and demographic indicators:
+        </p>
+        <pre style="background:#EFE7D4; border:2px solid var(--ink); border-radius:14px; padding:16px; overflow:auto; font-family:'Space Mono'; font-size:12px; line-height:1.6;">care_score =
+  0.5 × hospital_distance
++ 0.3 × population_density
+− 0.2 × clinic_availability</pre>
+        <p style="font-size:12px; color:#5c5560; margin-top:12px;">
+          The score is normalized between <strong>0</strong> (better access)
+          and <strong>1</strong> (higher care-desert risk).
+        </p>
+      </div>
+
+      <div style="background:var(--cream); border:var(--border); border-radius:20px; padding:24px; box-shadow:var(--shadow);">
+        <p class="mono" style="font-size:11px; margin-bottom:14px;">Risk interpretation</p>
+        <table style="width:100%; border-collapse:collapse; font-size:13px;">
+          <tr style="border-bottom:2px solid var(--ink);">
+            <th style="text-align:left; padding:10px 0;">Score range</th>
+            <th style="text-align:left; padding:10px 0;">Interpretation</th>
+          </tr>
+          <tr style="border-bottom:1px solid #D8CFB8;">
+            <td style="padding:10px 0;">0.00–0.33</td>
+            <td style="padding:10px 0;">Low risk</td>
+          </tr>
+          <tr style="border-bottom:1px solid #D8CFB8;">
+            <td style="padding:10px 0;">0.34–0.66</td>
+            <td style="padding:10px 0;">Moderate risk</td>
+          </tr>
+          <tr>
+            <td style="padding:10px 0;">0.67–1.00</td>
+            <td style="padding:10px 0;">High care-desert risk</td>
+          </tr>
+        </table>
+
+        <div style="margin-top:18px; padding:14px 16px; border:2px dashed var(--ink); border-radius:14px; background:#FFF7E8;">
+          <p class="mono" style="font-size:10.5px; margin-bottom:8px;">Why this matters</p>
+          <p style="font-size:13px; line-height:1.6;">
+            This converts the project from a <strong>visual mapping exercise</strong>
+            into a <strong>reproducible spatial risk-scoring pipeline</strong> that can
+            be extended with travel-time, public transport, or socioeconomic indicators.
+          </p>
+        </div>
+      </div>
+    </div>
+  </div>
+</section>
+
 
 <section class="contact section-pad" id="explore">
   <div class="wrap">
