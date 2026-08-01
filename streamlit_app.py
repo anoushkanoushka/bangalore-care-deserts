@@ -20,6 +20,8 @@ import folium
 from streamlit_folium import st_folium
 import matplotlib.pyplot as plt
 import shap
+from shapely.geometry import Point
+from geopy.geocoders import Nominatim
 
 st.set_page_config(page_title="Bangalore Care Desert Detector", layout="wide")
 
@@ -41,6 +43,11 @@ def load_model():
     model = joblib.load(f"{OUT}/model.joblib")
     scaler = joblib.load(f"{OUT}/scaler.joblib")
     return model, scaler
+
+
+@st.cache_resource
+def load_geolocator():
+    return Nominatim(user_agent="bangalore_care_desert_detector_app")
 
 
 gdf, metrics, X, shap_values = load_data()
@@ -100,6 +107,99 @@ raw density formula.
 st.divider()
 
 # ---------------------------------------------------------------------------
+# NEW: "Find your area" — address / landmark search
+# ---------------------------------------------------------------------------
+st.subheader("📍 Find your area")
+st.caption(
+    "Type an address, landmark, or neighborhood name in Bangalore. We'll geocode it "
+    "(free, via OpenStreetMap), find which BBMP ward it falls in, and show its "
+    "care-desert score, rank among all 243 wards, and why the model scored it that way."
+)
+
+address_input = st.text_input(
+    "e.g. 'Koramangala 5th Block', 'Indiranagar 100ft Road', 'MG Road, Bangalore'",
+    key="address_search",
+)
+
+if address_input:
+    with st.spinner("Looking that up..."):
+        geolocator = load_geolocator()
+        try:
+            location = geolocator.geocode(f"{address_input}, Bangalore, Karnataka, India", timeout=10)
+        except Exception:
+            location = None
+
+    if location is None:
+        st.warning(
+            "Couldn't find that location. Try being more specific (add a landmark, "
+            "block number, or 'Bangalore') and search again."
+        )
+    else:
+        pt = Point(location.longitude, location.latitude)
+        match = gdf[gdf.geometry.contains(pt)]
+
+        if match.empty:
+            st.warning(
+                f"Found **{location.address}**, but its coordinates fall outside the "
+                "243 BBMP ward boundaries covered by this dataset — it may be just "
+                "outside city limits."
+            )
+        else:
+            found_idx = match.index[0]
+            found_row = gdf.loc[found_idx]
+
+            rank = int((gdf["desert_score"] > found_row["desert_score"]).sum()) + 1
+            n_wards = len(gdf)
+            percentile_underserved = 100 * (n_wards - rank + 1) / n_wards
+
+            st.success(f"📍 **{location.address}** is in **{found_row['ward_name']}** ward")
+
+            f1, f2, f3, f4 = st.columns(4)
+            f1.metric("Actual facilities", int(found_row["facility_count"]))
+            f2.metric("Model predicted", f"{found_row['predicted_facilities']:.1f}")
+            f3.metric("Desert score", f"{found_row['desert_score']:.1f}")
+            f4.metric("Under-served rank", f"#{rank} of {n_wards}")
+
+            if found_row["desert_score"] > 5:
+                st.info(
+                    f"This ward ranks in the **top {percentile_underserved:.0f}%** most "
+                    "under-served wards in the city — it has notably fewer healthcare "
+                    "facilities than a ward with this shape, size, and location would "
+                    "be expected to have. This is exactly the kind of ward a new "
+                    "pharmacy or clinic would have the most impact in."
+                )
+            elif found_row["desert_score"] <= 0:
+                st.info(
+                    "This ward has as many (or more) facilities as the model predicted "
+                    "— it is not flagged as under-served."
+                )
+            else:
+                st.info(
+                    f"This ward is mildly under-served relative to expectation "
+                    f"(rank #{rank} of {n_wards})."
+                )
+
+            # Reuse the same SHAP explanation style as the ward drill-down below
+            sv = shap_values[found_idx]
+            contrib = pd.Series(
+                sv, index=[FEATURE_LABELS.get(c, c) for c in feature_cols]
+            ).sort_values()
+
+            fig_search, ax_search = plt.subplots(figsize=(5, 3.2))
+            colors_search = ["#d62728" if v < 0 else "#2ca02c" for v in contrib.values]
+            ax_search.barh(contrib.index, contrib.values, color=colors_search)
+            ax_search.axvline(0, color="black", linewidth=0.8)
+            ax_search.set_xlabel("SHAP contribution to predicted facility count")
+            ax_search.set_title(
+                f"Why the model predicts {found_row['predicted_facilities']:.1f} "
+                f"for {found_row['ward_name']}"
+            )
+            plt.tight_layout()
+            st.pyplot(fig_search)
+
+st.divider()
+
+# ---------------------------------------------------------------------------
 # Layout: map on the left, ranked list + ward drill-down on the right
 # ---------------------------------------------------------------------------
 left, right = st.columns([1.3, 1])
@@ -107,7 +207,6 @@ left, right = st.columns([1.3, 1])
 with right:
     st.subheader("🔎 Ranked care deserts")
     top_n = st.slider("Show top N most under-served wards", 5, 50, 15)
-
     ranked = gdf.sort_values("desert_score", ascending=False).head(top_n)
     display_df = ranked[["ward_name", "facility_count", "predicted_facilities", "desert_score"]].copy()
     display_df["predicted_facilities"] = display_df["predicted_facilities"].round(1)
@@ -118,7 +217,6 @@ with right:
     st.subheader("🧠 Explain a ward's prediction")
     ward_options = gdf.sort_values("desert_score", ascending=False)["ward_name"].tolist()
     selected_ward = st.selectbox("Pick a ward", ward_options)
-
     row_idx = gdf.index[gdf["ward_name"] == selected_ward][0]
     row = gdf.loc[row_idx]
 
@@ -128,9 +226,7 @@ with right:
     gap = row["predicted_facilities"] - row["facility_count"]
     m3.metric("Gap", f"{gap:.1f}", delta=None)
 
-    # SHAP waterfall-style bar chart for this ward
     sv = shap_values[row_idx]
-    base_value = model.intercept_ if hasattr(model, "intercept_") else 0
     contrib = pd.Series(sv, index=[FEATURE_LABELS.get(c, c) for c in feature_cols])
     contrib = contrib.sort_values()
 
@@ -142,6 +238,7 @@ with right:
     ax.set_title(f"Why the model predicts {row['predicted_facilities']:.1f} for {selected_ward}")
     plt.tight_layout()
     st.pyplot(fig)
+
     st.caption(
         "Green bars push the prediction UP (features that suggest this ward should "
         "have more facilities); red bars push it DOWN. This is what actually drove "
@@ -155,7 +252,6 @@ with left:
         ["Desert score (ML-flagged gap)", "Actual facility count", "Model predicted count"],
         horizontal=False,
     )
-
     color_col = {
         "Desert score (ML-flagged gap)": "desert_score",
         "Actual facility count": "facility_count",
@@ -215,3 +311,4 @@ st.caption(
     "spatial joins in GeoPandas, and SHAP for explainability. "
     "Data: BBMP ward boundaries (DataMeet) + OpenStreetMap healthcare POIs."
 )
+
